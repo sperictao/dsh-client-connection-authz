@@ -1,0 +1,13 @@
+# Disable the exact built-in transport row, then append the auth-capable
+# replacement. The name guard makes an upstream rename fail visible instead
+# of disabling an unrelated row that later reuses the id.
+- id: connection
+  name: '@deepseek-ai/dsh-client-connection'
+  disabled: true
+
+- insert:
+    - id: connection-authz
+      name: '@dsh-external/dsh-client-connection-authz'
+      inject: [webRuntime, connectionRequestAuthorizer]
+      config:
+        trustedHosts: !!js ctx.webRuntime.trustedHosts

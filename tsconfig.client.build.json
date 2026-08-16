@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "src/client",
+    "outDir": "lib/types/client",
+    "declaration": true,
+    "emitDeclarationOnly": true
+  },
+  "files": ["src/client/index.ts"]
+}
