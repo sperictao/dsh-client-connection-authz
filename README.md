@@ -1,6 +1,6 @@
 # dsh-client-connection-authz
 
-DeepSeek Harness `0.1.0-rc.6` 内置 connection 的完整替代包。它保留官方
+DeepSeek Harness `0.1.0-rc.x` 内置 connection 的完整替代包。它保留官方
 HTTP、共享/独立 RPC、WebSocket 和浏览器 client 行为，并在所有远程入口前
 增加一个由外部插件提供的 `ConnectionRequestAuthorizer`。
 
@@ -15,8 +15,9 @@ HTTP、共享/独立 RPC、WebSocket 和浏览器 client 行为，并在所有�
    `connectionRequestAuthorizer`。认证插件缺失或配置失败时，connection 不会以
    匿名模式降级启动。
 
-浏览器 bundle 来自官方 `@deepseek-ai/dsh-client-connection@0.1.0-rc.6`，构建时
-只替换模块表 id；脚本会校验上游精确版本和唯一 id，防止静默漂移。Host 源码基于
+浏览器 bundle 来自官方 `@deepseek-ai/dsh-client-connection`（跟随 package.json
+声明的依赖范围），构建时只替换模块表 id；脚本校验唯一 id 出现次数防止静默漂移，
+不校验上游精确版本。Host 源码基于
 DeepSeek Harness commit `47f943859bef60e4160492346772ded9b24f765a`，来源见
 [NOTICE.md](NOTICE.md)。
 
@@ -66,10 +67,14 @@ pnpm check
 ```
 
 测试覆盖 HTTP、共享/独立 RPC、WebSocket、特权 authority、回环 Host 伪造和既有
-trust fence。`pnpm build` 还会生成并校验官方 rc.6 浏览器 bundle。
+trust fence。`pnpm build` 生成并校验官方浏览器 bundle。
 
 ## 兼容范围
 
-当前版本只承诺兼容 DeepSeek Harness `0.1.0-rc.6`。升级 dsh 时必须重新核对 Host
-源码差异、官方 browser artifact、内置 bundle row 和完整集成测试，不能依赖 semver
-自动漂移。
+依赖声明（package.json 的 `^0.1.0-rc.8` 等）是本包与 dsh 版本兼容性的唯一事实
+来源：范围语义承诺该包在任何满足范围的 dsh 版本下工作。升级 dsh 到新 rc 时，
+本包的依赖范围随 `^` 自动覆盖（npm 预发布语义下 `^0.1.0-rc.8` 匹配
+`0.1.1-rc.1` 等后续 rc）；只有当上游 d.ts 出现 breaking change 时才需要改代码，
+此时 bump 本包版本并把依赖范围同步到新下限。不能用锁死确切版本的方式"防漂移"——
+那只会让 pnpm 在 profile 里解出版本裂缝（rc.6 插件 + rc.8 核心的 boot 崩溃
+就是这么来的）。

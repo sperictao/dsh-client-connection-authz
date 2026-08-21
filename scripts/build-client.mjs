@@ -18,5 +18,13 @@ if (occurrences !== 1) {
   )
 }
 
+// manifest.d.ts 引用的版本字面量由构建从 package.json 生成，源码侧不写
+// 版本字符串，发版只需 bump package.json 一处。
+const ownVersion = String(require('../package.json').version)
+
 await mkdir('lib', { recursive: true })
 await writeFile('lib/client.js', upstreamClient.replace(upstreamModuleId, replacementModuleId))
+await writeFile(
+  'lib/version.js',
+  `export const VERSION = ${JSON.stringify(ownVersion)}\n`,
+)
