@@ -1,7 +1,7 @@
 {
   "name": "@dsh-external/dsh-client-connection-authz",
   "description": "Auth-capable drop-in replacement for the DeepSeek Harness web connection",
-  "version": "0.1.0-rc.6-authz.1",
+  "version": "0.1.0-rc.8-authz.1",
   "private": true,
   "type": "module",
   "main": "lib/host/index.js",
@@ -59,21 +59,21 @@
     "url": "git+https://github.com/sperictao/dsh-client-connection-authz.git"
   },
   "dependencies": {
-    "@deepseek-ai/dsh-attachment": "0.1.0-rc.6",
-    "@deepseek-ai/dsh-client-connection": "0.1.0-rc.6",
-    "@deepseek-ai/dsh-host-apiproxy": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-attachment": "^0.1.0-rc.8",
+    "@deepseek-ai/dsh-client-connection": "^0.1.0-rc.8",
+    "@deepseek-ai/dsh-host-apiproxy": "^0.1.0-rc.8",
     "@deepseek-ai/schemastery": "^3.18.1",
     "ws": "^8.21.0"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
-    "@deepseek-ai/dsh-host-webserver": "0.1.0-rc.6",
-    "@deepseek-ai/dsh-invariants": "0.1.0-rc.6"
+    "@deepseek-ai/dsh-host-webserver": "^0.1.0-rc.8",
+    "@deepseek-ai/dsh-invariants": "^0.1.0-rc.8"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
-    "@deepseek-ai/dsh-host-webserver": "0.1.0-rc.6",
-    "@deepseek-ai/dsh-invariants": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-host-webserver": "^0.1.0-rc.8",
+    "@deepseek-ai/dsh-invariants": "^0.1.0-rc.8",
     "@types/node": "^24.10.0",
     "@types/ws": "^8.18.1",
     "rimraf": "^6.0.1",
