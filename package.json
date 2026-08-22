@@ -1,7 +1,7 @@
 {
   "name": "@dsh-external/dsh-client-connection-authz",
   "description": "Auth-capable drop-in replacement for the DeepSeek Harness web connection",
-  "version": "0.1.0-rc.8-authz.1",
+  "version": "0.1.0-rc.8-authz.2",
   "private": true,
   "type": "module",
   "main": "lib/host/index.js",

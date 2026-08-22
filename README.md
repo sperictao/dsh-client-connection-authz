@@ -44,6 +44,11 @@ authorizer → body 读取/协议升级/业务 handler。有效本地旁路必�
 授权前把 handler 与 authority 快照为同一 target，避免授权后切换 interceptor 的
 时序绕过。
 
+浏览器侧不再用页面 hostname 预先否决 Host-authority 界面。替换 bundle 会让既有
+`connection.isLoopback` 消费者尝试配置、凭据、宿主文件等特权 RPC；这不是授权结论，
+每个请求仍必须通过上述 Host fence 与外部 authorizer。没有 admin capability 的远程
+身份只能得到 403，拥有 admin capability 的身份才会到达业务 handler。
+
 ## 安装
 
 这个包故意不能单独启用；profile 还必须安装一个提供 authorizer 的认证包。例如与

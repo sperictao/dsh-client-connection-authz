@@ -9,12 +9,20 @@ const require = createRequire(import.meta.url)
 const upstreamClientPath = require.resolve('@deepseek-ai/dsh-client-connection/client')
 const upstreamModuleId = 'id: "@deepseek-ai/dsh-client-connection"'
 const replacementModuleId = 'id: "@dsh-external/dsh-client-connection-authz"'
+const upstreamLoopbackAuthority = 'isLoopback: pageLocation === void 0 || isLoopbackHostname(pageLocation.hostname)'
+const hostEnforcedAuthority = 'isLoopback: true'
 const upstreamClient = await readFile(upstreamClientPath, 'utf8')
 const occurrences = upstreamClient.split(upstreamModuleId).length - 1
+const authorityOccurrences = upstreamClient.split(upstreamLoopbackAuthority).length - 1
 
 if (occurrences !== 1) {
   throw new Error(
     `expected one upstream client module id, found ${String(occurrences)} in ${upstreamClientPath}`,
+  )
+}
+if (authorityOccurrences !== 1) {
+  throw new Error(
+    `expected one upstream loopback authority initializer, found ${String(authorityOccurrences)} in ${upstreamClientPath}`,
   )
 }
 
@@ -23,7 +31,16 @@ if (occurrences !== 1) {
 const ownVersion = String(require('../package.json').version)
 
 await mkdir('lib', { recursive: true })
-await writeFile('lib/client.js', upstreamClient.replace(upstreamModuleId, replacementModuleId))
+// Existing dsh clients use `connection.isLoopback` as "may attempt Host-authority
+// operations". In this replacement, hostname is not the authority: every request
+// still crosses the mandatory Host fence and injected authorizer, whose admin
+// capability decision is the single security fact.
+await writeFile(
+  'lib/client.js',
+  upstreamClient
+    .replace(upstreamModuleId, replacementModuleId)
+    .replace(upstreamLoopbackAuthority, hostEnforcedAuthority),
+)
 await writeFile(
   'lib/version.js',
   `export const VERSION = ${JSON.stringify(ownVersion)}\n`,
