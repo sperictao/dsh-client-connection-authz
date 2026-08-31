@@ -9,8 +9,10 @@ const require = createRequire(import.meta.url)
 const upstreamClientPath = require.resolve('@deepseek-ai/dsh-client-connection/client')
 const upstreamModuleId = 'id: "@deepseek-ai/dsh-client-connection"'
 const replacementModuleId = 'id: "@dsh-external/dsh-client-connection-authz"'
-const upstreamLoopbackAuthority = 'isLoopback: pageLocation === void 0 || isLoopbackHostname(pageLocation.hostname)'
-const hostEnforcedAuthority = 'isLoopback: true'
+// 0.1.2 线上游给 isLoopback 增加了 transport?.ownsHost 析取支；替换锚点是整个
+// 初始化表达式，上游再改这一行会让下方 occurrences 校验直接失败可见。
+const upstreamLoopbackAuthority = 'isLoopback: transport?.ownsHost === true || pageLocation === void 0 || isLoopbackHostname(pageLocation.hostname),'
+const hostEnforcedAuthority = 'isLoopback: true,'
 const upstreamClient = await readFile(upstreamClientPath, 'utf8')
 const occurrences = upstreamClient.split(upstreamModuleId).length - 1
 const authorityOccurrences = upstreamClient.split(upstreamLoopbackAuthority).length - 1
