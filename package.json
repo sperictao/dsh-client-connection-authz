@@ -1,7 +1,7 @@
 {
   "name": "@dsh-external/dsh-client-connection-authz",
   "description": "Auth-capable drop-in replacement for the DeepSeek Harness web connection",
-  "version": "0.1.2-alpha.2-authz.1",
+  "version": "0.1.2-alpha.2-authz.2",
   "private": true,
   "type": "module",
   "main": "lib/host/index.js",
@@ -61,21 +61,18 @@
   "dependencies": {
     "@deepseek-ai/dsh-attachment": "^0.1.2-alpha.2",
     "@deepseek-ai/dsh-client-connection": "^0.1.2-alpha.2",
-    "@deepseek-ai/dsh-host-apiproxy": "^0.1.1-rc.2",
-    "@deepseek-ai/schemastery": "^3.18.1",
-    "ws": "^8.21.0"
+    "@deepseek-ai/schemastery": "^3.18.2"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/cordis": "^4.0.2",
     "@deepseek-ai/dsh-host-webserver": "^0.1.2-alpha.2",
     "@deepseek-ai/dsh-invariants": "^0.1.2-alpha.2"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/cordis": "^4.0.2",
     "@deepseek-ai/dsh-host-webserver": "^0.1.2-alpha.2",
     "@deepseek-ai/dsh-invariants": "^0.1.2-alpha.2",
     "@types/node": "^24.10.0",
-    "@types/ws": "^8.18.1",
     "rimraf": "^6.0.1",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"

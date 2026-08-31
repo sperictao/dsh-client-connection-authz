@@ -15,8 +15,6 @@
     "src/invariant.ts",
     "src/loopback-hostname.ts",
     "src/request-authorizer.ts",
-    "src/rpc-host.ts",
-    "src/rpc.ts",
-    "src/websocket-downlink.ts"
+    "src/rpc-host.ts"
   ]
 }

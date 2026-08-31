@@ -13,15 +13,16 @@
  * belongs to the webserver config, and this fence is not an auth layer.
  */
 
-import type { IncomingHttpHeaders } from 'node:http'
 import { isLoopbackHostname } from './loopback-hostname.ts'
+
+type HeaderRecord = Readonly<Record<string, string | readonly string[] | undefined>>
 
 /** The request facts the fence reads from either HTTP representation. */
 interface ApiTrustRequest {
-  headers: IncomingHttpHeaders | Headers
+  headers: HeaderRecord | Headers
 }
 
-function header(headers: IncomingHttpHeaders | Headers, name: string): string | undefined {
+function header(headers: HeaderRecord | Headers, name: string): string | undefined {
   if (headers instanceof Headers) return headers.get(name) ?? undefined
   const value = headers[name]
   return typeof value === 'string' ? value : undefined

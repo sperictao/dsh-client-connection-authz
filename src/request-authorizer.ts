@@ -1,4 +1,3 @@
-import type { IncomingHttpHeaders } from 'node:http'
 import type { ServerResponse } from 'node:http'
 import { isTrustedApiRequest } from './api-request-trust.ts'
 import { isLoopbackHostname } from './loopback-hostname.ts'
@@ -44,8 +43,8 @@ export interface ConnectionRequestAuthorizer {
 }
 
 interface RequestWithHeaders {
-  readonly headers: IncomingHttpHeaders | Headers
-  readonly socket: { readonly remoteAddress: string | undefined }
+  readonly headers: Headers | Readonly<Record<string, string | readonly string[] | undefined>>
+  readonly socket?: { readonly remoteAddress: string | undefined }
 }
 
 type ConnectionRequestFactsWithoutHeaders = Omit<ConnectionRequestFacts, 'headers'>
@@ -102,7 +101,9 @@ export function denyHttpRequest(
   response.end(decision.status === 401 ? 'unauthorized' : 'forbidden')
 }
 
-function headerView(headers: IncomingHttpHeaders | Headers): ConnectionRequestHeaders {
+function headerView(
+  headers: Headers | Readonly<Record<string, string | readonly string[] | undefined>>,
+): ConnectionRequestHeaders {
   return {
     get(name) {
       if (headers instanceof Headers) return headers.get(name) ?? undefined
