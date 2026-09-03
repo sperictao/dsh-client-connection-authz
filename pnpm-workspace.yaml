@@ -1,0 +1,6 @@
+# 本目录是独立的 pnpm workspace 根：阻止向上逃逸到 dsh-pro-max 根的
+# pnpm-workspace.yaml（其 allowBuilds/ignoredBuiltDependencies 会让外层
+# pnpm 把本目录误判为已装好的 workspace 成员，静默跳过依赖安装，导致
+# rimraf/tsc 找不到）。仅声明自身为成员，不掺入外层构建配置。
+packages:
+  - .
