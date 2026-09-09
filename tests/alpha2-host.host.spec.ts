@@ -165,6 +165,7 @@ describe('alpha2 Host Connection compatibility', () => {
     const unregister = mounted.connection.fetch.register({
       path: '/api/session.export',
       methods: ['GET'],
+      requestBody: 'buffered',
       fetch: async () => new Response('zip', { status: 200 }),
     })
     const result = fakeResponse()

@@ -35,6 +35,7 @@ interface ConnectionRpcInterceptor {
 
 interface RegisteredFetchRoute {
   readonly methods: ReadonlySet<string>
+  readonly requestBody: ConnectionFetchRoute['requestBody']
   readonly fetch: ConnectionFetchRoute['fetch']
 }
 
@@ -94,6 +95,10 @@ export class HostConnectionService extends Service implements HostConnectionHand
 
   createSharedFetchHandler(channel: '/api'): ConnectionFetchHandler {
     return {
+      requestBodyMode: ({ method, url }) => {
+        const route = this.fetchRoutes.get(url.pathname)
+        return route?.methods.has(method) === true ? route.requestBody : 'buffered'
+      },
       fetch: (request) => {
         const pathname = new URL(request.url).pathname
         const route = this.fetchRoutes.get(pathname)
@@ -112,6 +117,7 @@ export class HostConnectionService extends Service implements HostConnectionHand
     assertFetchRoute(route)
     const registered: RegisteredFetchRoute = {
       methods: new Set(route.methods),
+      requestBody: route.requestBody,
       fetch: route.fetch,
     }
     return owner.effect(() => {
