@@ -2,6 +2,7 @@
 import { Context, Service } from '@deepseek-ai/cordis'
 import {
   clientRequestSchema,
+  OperatorPeer,
   RpcId,
   type ClientRequest,
   type ConnectionFetchHandler,
@@ -12,11 +13,13 @@ import {
   type ConnectionRpcEndpointMatcher,
   type ConnectionRpcFailure,
   type ConnectionRpcHandler,
-  type ConnectionRpcResult,
+  type ConnectionRpcHandlerResult,
   type ConnectionTrustRequest,
   type HostConnectionFetch,
   type HostConnectionHandle,
   type HostConnectionRpc,
+  type PeerAdmission,
+  type PeerScope,
   type RpcId as RpcIdType,
 } from '@deepseek-ai/dsh-client-connection'
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
@@ -42,15 +45,19 @@ interface RegisteredFetchRoute {
 interface ConnectionServerResponse {
   readonly type: 'server-response'
   readonly rpcId: RpcIdType
-  readonly result: ConnectionRpcResult<unknown>
+  readonly result: ConnectionRpcHandlerResult
 }
 
 export class HostConnectionService extends Service implements HostConnectionHandle {
   private readonly interceptors = new Map<string, ConnectionRpcInterceptor>()
   private readonly fetchRoutes = new Map<string, RegisteredFetchRoute>()
+  /** The operator Peer every admitted request speaks for. */
+  readonly operator: PeerScope
 
   constructor(ctx: Context, private readonly requestGate: ConnectionRequestGate) {
     super(ctx, 'connection')
+    this.operator = new OperatorPeer(ctx)
+    ctx.effect(() => () => this.operator.dispose(), 'client-connection: operator peer')
   }
 
   get rpc(): HostConnectionRpc {
@@ -75,6 +82,11 @@ export class HostConnectionService extends Service implements HostConnectionHand
       requiredAuthority: 'trusted-host',
     })
     return decision.allowed ? undefined : decision.status
+  }
+
+  admit(request: ConnectionTrustRequest): PeerAdmission {
+    const rejection = this.requestRejection(request)
+    return rejection === undefined ? { peer: this.operator } : { rejection }
   }
 
   authorizeIndex(request: ConnectionIndexRequest, response: ConnectionIndexResponse): boolean {
@@ -135,7 +147,7 @@ export class HostConnectionService extends Service implements HostConnectionHand
     handler: ConnectionRpcHandler,
   ): () => Promise<void> {
     assertChannel(channel)
-    const fetchHandler = rpcFetchHandler(channel, handler)
+    const fetchHandler = rpcFetchHandler(channel, handler, this.operator)
     const route: WebRoute = {
       kind: 'prefix',
       path: channel,
@@ -171,7 +183,7 @@ export class HostConnectionService extends Service implements HostConnectionHand
   ): () => Promise<void> {
     const interceptor: ConnectionRpcInterceptor = {
       matches,
-      fetchHandler: rpcFetchHandler(channel, handler),
+      fetchHandler: rpcFetchHandler(channel, handler, this.operator),
     }
     return owner.effect(() => {
       if (this.interceptors.has(channel)) {
@@ -183,7 +195,11 @@ export class HostConnectionService extends Service implements HostConnectionHand
   }
 }
 
-function rpcFetchHandler(channel: string, handler: ConnectionRpcHandler): FetchHandler {
+function rpcFetchHandler(
+  channel: string,
+  handler: ConnectionRpcHandler,
+  peer: PeerScope,
+): FetchHandler {
   return {
     async fetch(request: Request): Promise<Response> {
       const endpoint = endpointFromPath(channel, new URL(request.url).pathname)
@@ -211,7 +227,10 @@ function rpcFetchHandler(channel: string, handler: ConnectionRpcHandler): FetchH
         })
       }
       try {
-        return fullResponse(message.rpcId, await handler(endpoint, message.payload, request.signal))
+        return fullResponse(
+          message.rpcId,
+          await handler(endpoint, message.payload, request.signal, peer),
+        )
       } catch (error) {
         return new Response(`handler failure: ${String(error)}`, { status: 500 })
       }
@@ -242,7 +261,35 @@ function errorResponse(rpcId: RpcIdType, error: ConnectionRpcFailure): Response 
   return fullResponse(rpcId, { ok: false, error })
 }
 
-function fullResponse(rpcId: RpcIdType, result: ConnectionRpcResult<unknown>): Response {
+/**
+ * Result envelope for one RPC call. A result carrying attachments (binary
+ * payloads the browser client splices back into `null` placeholders) must leave
+ * as `multipart/form-data`: one `bytes-<index>` part per attachment, plus a
+ * `metadata` part holding the JSON envelope extended with the attachment map.
+ * The client parser is the other half of this contract — `bytes-<index>` part
+ * names, `codec: 'bytes'`, and result-relative `path` are wire facts.
+ */
+function fullResponse(rpcId: RpcIdType, result: ConnectionRpcHandlerResult): Response {
+  if (!result.ok) return jsonResponse(rpcId, result)
+  const { attachments, ...body } = result
+  if (attachments === undefined || attachments.length === 0) return jsonResponse(rpcId, body)
+  const form = new FormData()
+  const rows = attachments.map((attachment, index) => {
+    const part = `bytes-${String(index)}`
+    // FileSystem bytes may be backed by SharedArrayBuffer, which Blob rejects.
+    form.set(part, new Blob([new Uint8Array(attachment.bytes)]))
+    return { path: [...attachment.path], codec: 'bytes', part }
+  })
+  form.set('metadata', JSON.stringify({
+    type: 'server-response',
+    rpcId,
+    result: body,
+    attachments: rows,
+  }))
+  return new Response(form)
+}
+
+function jsonResponse(rpcId: RpcIdType, result: ConnectionRpcHandlerResult): Response {
   const body: ConnectionServerResponse = { type: 'server-response', rpcId, result }
   return Response.json(body)
 }

@@ -219,3 +219,111 @@ describe('alpha2 Host Connection compatibility', () => {
       .toThrow(/must be at least .* aggregate image limit/)
   })
 })
+
+describe('0.1.7 Host Connection contract', () => {
+  it('exposes the operator peer and admits every allowed request as it', async () => {
+    const mounted = await mount(() => allowed)
+    const operator = mounted.connection.operator
+    expect(operator).toMatchObject({ id: expect.any(String) })
+    expect(operator.ctx).toBeDefined()
+
+    const request = fakeRequest(
+      { host: 'harness.example', origin: 'http://harness.example' },
+      `${API_PATH}/session/list`,
+      undefined,
+      '192.0.2.4',
+    )
+    expect(mounted.connection.admit(request)).toEqual({ peer: operator })
+
+    const denied = await mount(() => ({ allowed: false, status: 403 }))
+    expect(denied.connection.admit(request)).toEqual({ rejection: 403 })
+    await denied.dispose()
+    await mounted.dispose()
+  })
+
+  it('passes the operator peer into every registered handler', async () => {
+    const mounted = await mount(() => allowed)
+    const peers: unknown[] = []
+    const unregister = mounted.connection.rpc.intercept('/api', () => true, async (
+      _endpoint,
+      _payload,
+      _signal,
+      peer,
+    ) => {
+      peers.push(peer)
+      return { ok: true, value: {} }
+    })
+    const result = fakeResponse()
+    await mounted.routes[0]!.handler(
+      fakeRequest(
+        { host: 'harness.example', origin: 'http://harness.example' },
+        `${API_PATH}/session/list`,
+        rpc('session/list'),
+        '192.0.2.4',
+      ),
+      result.response,
+    )
+    expect(result.state.status).toBe(200)
+    expect(peers).toEqual([mounted.connection.operator])
+    await unregister()
+    await mounted.dispose()
+  })
+
+  it('returns handler attachments as multipart form data with a metadata envelope', async () => {
+    const mounted = await mount(() => allowed)
+    const unregister = mounted.connection.rpc.intercept('/api', () => true, async () => ({
+      ok: true,
+      value: { preview: null },
+      attachments: [{ path: ['preview'], bytes: new Uint8Array([1, 2, 3]) }],
+    }))
+    const result = fakeResponse()
+    await mounted.routes[0]!.handler(
+      fakeRequest(
+        { host: 'harness.example', origin: 'http://harness.example' },
+        `${API_PATH}/session/list`,
+        rpc('session/list'),
+        '192.0.2.4',
+      ),
+      result.response,
+    )
+    const body = result.state.body ?? ''
+    expect(result.state.status).toBe(200)
+    expect(body).toContain('name="bytes-0"')
+    expect(body).toContain('name="metadata"')
+    expect(body).toContain('"codec":"bytes"')
+    expect(body).toContain('"path":["preview"]')
+    await unregister()
+    await mounted.dispose()
+  })
+
+  it('keeps 0.1.7 local-machine namespaces on the admin authority tier', async () => {
+    const authorize = vi.fn<Authorize>(() => allowed)
+    const mounted = await mount(authorize)
+    const unregister = mounted.connection.rpc.intercept('/api', () => true, async () => ({
+      ok: true,
+      value: {},
+    }))
+    for (const endpoint of ['terminal/create', 'workspace/rename', 'account/startSignIn', 'cordisHostRunner/invoke', 'session/list']) {
+      const result = fakeResponse()
+      await mounted.routes[0]!.handler(
+        fakeRequest(
+          { host: 'harness.example', origin: 'http://harness.example' },
+          `${API_PATH}/${endpoint}`,
+          rpc(endpoint),
+          '192.0.2.4',
+        ),
+        result.response,
+      )
+      expect(result.state.status).toBe(200)
+    }
+    expect(authorize.mock.calls.map(call => call[0])).toMatchObject([
+      { endpoint: 'terminal/create', requiredAuthority: 'loopback' },
+      { endpoint: 'workspace/rename', requiredAuthority: 'loopback' },
+      { endpoint: 'account/startSignIn', requiredAuthority: 'loopback' },
+      { endpoint: 'cordisHostRunner/invoke', requiredAuthority: 'loopback' },
+      { endpoint: 'session/list', requiredAuthority: 'trusted-host' },
+    ])
+    await unregister()
+    await mounted.dispose()
+  })
+})

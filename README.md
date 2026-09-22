@@ -1,6 +1,6 @@
 # dsh-client-connection-authz
 
-DeepSeek Harness `0.1.0-rc.x` 内置 connection 的完整替代包。它保留官方
+DeepSeek Harness 内置 connection 的完整替代包（当前跟线 `0.1.7-alpha.1`）。它保留官方
 HTTP、共享/独立 RPC、WebSocket 和浏览器 client 行为，并在所有远程入口前
 增加一个由外部插件提供的 `ConnectionRequestAuthorizer`。
 
@@ -37,6 +37,20 @@ interface ConnectionRequestAuthorizer {
 - `trusted-host`：普通 API、普通 RPC 和两个 WebSocket downlink。
 - `loopback`：设置、凭据、宿主文件操作等特权 API；认证插件只有显式授予更高权限
   才能让远程调用通过。
+
+特权判定分两级，`src/index.ts` 的 `isPrivilegedEndpoint` 是唯一判定点：
+
+1. `PRIVILEGED_ENDPOINTS`：混合命名空间里的单个特权端点（`settings/*`、
+   `session/openWorkspacePath` 等与普通端点同处一个命名空间）。
+2. `PRIVILEGED_NAMESPACES`：整个命名空间都不存在 use-authority 方法的，按前缀
+   整体判特权（`terminal`、`workspace`、`workspaceFiles`、`account`、
+   `officeToPdf`、`cordisHostRunner`/`dynamicCordisRunner`）。
+
+第二级的存在理由：上游给命名空间加方法不算破坏性变更——0.1.7 把 terminal 控制器
+从 1 个方法扩到 10 个（`create`/`write`/`resize`/`close`…，直接在本机以系统用户
+权限开真实 PTY）。只维护精确端点名的话，上游每一次这样的扩张都静默失败开放。
+判定按前缀是 fail-closed：多列一个永不匹配的命名空间没有代价，漏一个就是远程
+任意命令执行。
 
 执行顺序固定为：Host/Origin/DNS-rebinding fence → 本地回环判断 → 外部
 authorizer → body 读取/协议升级/业务 handler。有效本地旁路必须同时满足回环 Host
@@ -76,10 +90,16 @@ trust fence。`pnpm build` 生成并校验官方浏览器 bundle。
 
 ## 兼容范围
 
-依赖声明（package.json 的 `^0.1.6-alpha.1` 等）是本包与 dsh 版本兼容性的唯一事实
+依赖声明（package.json 的 `^0.1.7-alpha.1` 等）是本包与 dsh 版本兼容性的唯一事实
 来源：范围语义承诺该包在任何满足范围的 dsh 版本下工作。升级 dsh 到新线时，
 只有当上游 d.ts 出现 breaking change 或依赖范围不再覆盖新线时才需要改代码，
-此时 bump 本包版本并把依赖范围同步到新下限（如 `^0.1.5-alpha.1` →
-`^0.1.6-alpha.1`）。不能用锁死确切版本的方式"防漂移"——
+此时 bump 本包版本并把依赖范围同步到新下限（如 `^0.1.6-alpha.1` →
+`^0.1.7-alpha.1`）。不能用锁死确切版本的方式"防漂移"——
 那只会让 pnpm 在 profile 里解出版本裂缝（rc.6 插件 + rc.8 核心的 boot 崩溃
 就是这么来的）。
+
+0.1.6 → 0.1.7 正是这条政策预期的情况：上游 Connection 改了契约（`HostConnectionHandle`
+新增 `operator` 与 `admit`；`ConnectionRpcHandler` 多一个 `peer` 参数并改返回可携带
+二进制附件的 `ConnectionRpcHandlerResult`），host 半边因此有代码改动；浏览器半边仍
+是官方产物加两处字符串替换，构建脚本的唯一 id 与 loopback 权威锚点在 0.1.7 产物里
+仍各命中一次，故未动。

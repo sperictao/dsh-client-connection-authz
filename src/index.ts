@@ -15,9 +15,11 @@ export type {
   ConnectionFetchRoute,
   ConnectionIndexRequest,
   ConnectionIndexResponse,
+  ConnectionRpcAttachment,
   ConnectionRpcEndpointMatcher,
   ConnectionRpcFailure,
   ConnectionRpcHandler,
+  ConnectionRpcHandlerResult,
   ConnectionRequestRejection,
   ConnectionRpcResult,
   ConnectionTrustRequest,
@@ -25,6 +27,9 @@ export type {
   HostConnectionHandle,
   HostConnectionFetch,
   HostConnectionRpc,
+  PeerAdmission,
+  PeerId,
+  PeerScope,
   RpcMessage,
   ServerResponse,
 } from '@deepseek-ai/dsh-client-connection'
@@ -70,6 +75,7 @@ export const Config: z<ConnectionConfig> = z.object({
   maxRequestBodyBytes: z.natural().min(1).default(DEFAULT_MAX_REQUEST_BODY_BYTES),
 })
 
+/** Admin-only endpoints that live inside an otherwise use-authority namespace. */
 const PRIVILEGED_ENDPOINTS = new Set([
   'agentPresets/copy',
   'agentPresets/deletePreset',
@@ -80,19 +86,8 @@ const PRIVILEGED_ENDPOINTS = new Set([
   'directoryPicker/createDirectory',
   'directoryPicker/list',
   'directoryPicker/pick',
-  'dynamicCordisRunner/getClientCode',
-  'dynamicCordisRunner/inventory',
-  'dynamicCordisRunner/invoke',
-  'dynamicCordisRunner/reportClientGuardFailure',
-  'dynamicCordisRunner/reportRenderFailure',
-  'dynamicCordisRunner/resolveInspectQuery',
-  'dynamicCordisRunner/resolveRequestRun',
-  'dynamicCordisRunner/runHostHalf',
-  'dynamicCordisRunner/settleUserRun',
-  'dynamicCordisRunner/stopFromPanel',
-  'dynamicCordisRunner/syncInspectManifest',
-  'dynamicCordisRunner/undefineFromPanel',
   'llm/discoverModels',
+  'pluginInventory/list',
   'session/canOpenWorkspacePath',
   'session/openWorkspacePath',
   'settings/canOpenAgentPresetDirectory',
@@ -103,6 +98,39 @@ const PRIVILEGED_ENDPOINTS = new Set([
   'settings/replace',
   'settings/update',
 ])
+
+/**
+ * Whole namespaces that hold no use-authority method. Upstream adds methods to
+ * a namespace without a breaking change (0.1.7 grew the terminal controller to
+ * ten methods), so an exact-name list alone fails open the moment upstream
+ * ships a method we never enumerated. Listing the namespace is fail-closed by
+ * construction — only a namespace with no use-authority method may appear here.
+ */
+const PRIVILEGED_NAMESPACES = new Set([
+  // Interactive sign-in hands credentials to the on-machine store.
+  'account',
+  // Both cordis runners execute plugin code in the host process. The renamed
+  // 0.1.7 loader row leaves the endpoint namespace unconfirmed, so both spellings
+  // stay listed: a namespace entry that never matches costs nothing, a missing
+  // one would open remote code execution.
+  'cordisHostRunner',
+  'dynamicCordisRunner',
+  // Writes the host's temp directory and drives a native office engine.
+  'officeToPdf',
+  // Real shells under the execution environment's system-user permissions.
+  'terminal',
+  // Creates and renames directories under the user's home.
+  'workspace',
+  // Reads arbitrary local files, including paths outside registered workspaces.
+  'workspaceFiles',
+])
+
+/** Whether one `/api` endpoint needs the admin (loopback) authority tier. */
+export function isPrivilegedEndpoint(endpoint: string): boolean {
+  if (PRIVILEGED_ENDPOINTS.has(endpoint)) return true
+  const separator = endpoint.indexOf('/')
+  return separator > 0 && PRIVILEGED_NAMESPACES.has(endpoint.slice(0, separator))
+}
 
 export function apply(ctx: Context, config?: ConnectionConfig): void {
   const trustedHosts = config?.trustedHosts ?? []
@@ -125,7 +153,7 @@ export function apply(ctx: Context, config?: ConnectionConfig): void {
         transport: 'http',
         channel: API_PATH,
         ...(endpoint === undefined ? {} : { endpoint }),
-        requiredAuthority: endpoint !== undefined && PRIVILEGED_ENDPOINTS.has(endpoint)
+        requiredAuthority: endpoint !== undefined && isPrivilegedEndpoint(endpoint)
           ? 'loopback'
           : 'trusted-host',
       })
